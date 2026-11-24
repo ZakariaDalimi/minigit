@@ -4,28 +4,25 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 
 public class Repository {
 
 
-    private final ArrayList<String> folders = new ArrayList<>(List.of("objects", "commits"));
-    private final ArrayList<String> files = new ArrayList<>(List.of( "index", "HEAD", "config"));
+    private final List<String> folders = List.of("objects", "refs");
+    private final List<String> files = List.of( "index", "HEAD", "config");
 
 
 
-    public boolean initialize() throws IOException {
+    public boolean initialize() {
 
         File mainFolder = new File(".minigit");
-
         if (mainFolder.exists()) {
             return false;
         }
-
         try {
-
             if (!mainFolder.mkdir()) {
                 return false;
             }
@@ -34,46 +31,56 @@ public class Repository {
                 File directory = new File(mainFolder, folder);
 
                 if (!directory.mkdir()) {
-                    delete(mainFolder);
+                    delete();
                     return false;
+                }else{
+                    if(folder.equals("refs")){
+                        File heads = new File(directory, "heads");
+                        if (!heads.mkdir()) {
+                            delete();
+                            return false;
+                        }
+                        File main = new File(heads, "main");
+                        if (!main.createNewFile()) {
+                            delete();
+                            return false;
+                        }
+                        }
                 }
+
             }
 
             for (String f : files) {
                 File file = new File(mainFolder, f);
-
                 if (!file.createNewFile()) {
-                    delete(mainFolder);
+                    delete();
                     return false;
                 }
             }
 
+            File config = new File(mainFolder, "config");
+            File head = new File(mainFolder, "HEAD");
 
-            createConfig(".minigit/config");
-
+            createConfig(config.getPath());
+            createHead(head.getPath());
 
             return true;
 
         }catch (IOException e) {
-            delete(mainFolder);
+            delete();
             System.out.println("Initialization failed: " + e.getMessage());
             return false;
         }
     }
 
 
-    public static void delete(File entry) {
+    public static void delete() {
 
-        try {
-            if (entry.isFile()) {
-                entry.delete();
-            } else {
-                String[] entries = entry.list();
-                for (String e : entries) {
-                    File currentFile = new File(entry.getPath(), e);
-                    currentFile.delete();
-                }
-                entry.delete();
+        Path path = Path.of(".minigit");
+
+        try (var paths = Files.walk(path)) {
+            for (Path current : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(current);
             }
         } catch (Exception e) {
             System.out.println("Deleting failed: " + e.getMessage());
@@ -82,7 +89,6 @@ public class Repository {
     }
 
     public static void createConfig(String configPath) throws IOException {
-
         String configContent = """
                 [repository]
                 name = MiniGit
@@ -91,8 +97,13 @@ public class Repository {
                 hashAlgorithm = SHA-256
                 \n
                 """;
-
         Files.writeString(Path.of(configPath), configContent);
+    }
+
+
+    public static void createHead(String headPath) throws IOException {
+        String headContent = "ref: refs/heads/main";
+        Files.writeString(Path.of(headPath), headContent);
     }
 
 
